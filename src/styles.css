@@ -32,11 +32,11 @@ button {
 
 .app {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 16px;
-  height: 100dvh;
-  min-height: 720px;
-  overflow: hidden;
+  min-height: 100dvh;
+  overflow: visible;
   padding: 16px;
 }
 
@@ -53,17 +53,19 @@ button {
 .leftRail {
   border-radius: 24px;
   display: flex;
-  flex-direction: column;
+  grid-column: 1 / -1;
+  flex-direction: row;
   align-items: center;
-  padding: 16px 10px;
+  gap: 16px;
+  padding: 12px 14px;
 }
 
 .brandMark {
-  display: grid;
+  display: flex;
+  align-items: center;
   gap: 8px;
-  justify-items: center;
   text-align: center;
-  margin-bottom: 28px;
+  margin: 0 auto 0 0;
 }
 
 .mark {
@@ -80,7 +82,7 @@ button {
 
 .brandMark strong {
   display: block;
-  font-size: 12px;
+  font-size: 13px;
   letter-spacing: 0;
 }
 
@@ -90,20 +92,25 @@ button {
 }
 
 .toolStack {
-  display: grid;
-  gap: 10px;
+  display: flex;
+  gap: 8px;
 }
 
 .tool,
 .addButton,
 .iconButton {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 78px;
+  height: 42px;
+  padding: 0 12px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.07);
   color: #c6d6cf;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .tool.active {
@@ -112,7 +119,8 @@ button {
 }
 
 .addButton {
-  margin-top: auto;
+  min-width: 44px;
+  margin: 0;
   background: #234b39;
 }
 
@@ -134,15 +142,13 @@ button {
   display: none;
 }
 
-.leftRail,
 .fieldShell,
 .inspector {
   min-height: 0;
-  max-height: calc(100dvh - 32px);
 }
 
 .inspector {
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .panelTop,
@@ -281,15 +287,44 @@ h3 {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  grid-column: 2;
+  grid-column: 1;
+  grid-row: 2;
   padding: 22px;
   overflow: hidden;
+}
+
+.inspector {
+  grid-column: 2;
+  grid-row: 2;
 }
 
 .fieldHeader {
   justify-content: space-between;
   gap: 20px;
   margin-bottom: 12px;
+}
+
+.workflowHint {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.workflowHint span {
+  display: inline-grid;
+  place-items: center;
+  min-height: 30px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.055);
+  color: #9dafaa;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.workflowHint span.active {
+  background: #f6c15b;
+  color: #132018;
 }
 
 .fieldHeader div:first-child {
@@ -321,16 +356,15 @@ h3 {
 }
 
 .routeQuickBar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
   margin-bottom: 12px;
-  padding: 10px;
+  padding: 12px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.065);
   border: 1px solid rgba(246, 193, 91, 0.22);
-  overflow-x: auto;
-  scrollbar-width: thin;
 }
 
 .routeQuickMeta,
@@ -347,30 +381,59 @@ h3 {
   font-size: 12px;
   font-weight: 900;
   white-space: nowrap;
+  min-height: 34px;
+}
+
+.routeQuickContent {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .routeQuickButtons,
 .routeQuickTools {
-  flex: 0 0 auto;
-  flex-wrap: nowrap;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+}
+
+.routeQuickButtons {
+  flex: 1 1 420px;
+}
+
+.routeQuickTools {
+  justify-content: flex-end;
 }
 
 .routeQuickButtons button,
 .routeQuickTools button {
   flex: 0 0 auto;
-  min-height: 32px;
-  padding: 7px 10px;
+  min-height: 34px;
+  padding: 6px 10px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.09);
   color: #dce8e2;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   white-space: nowrap;
 }
 
 .routeQuickButtons button {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 62px;
   background: #f6c15b;
   color: #132018;
+}
+
+.routeQuickButtons strong {
+  font-size: 12px;
+}
+
+.routeQuickButtons small {
+  font-size: 9px;
+  opacity: 0.72;
 }
 
 .routeQuickButtons button:disabled,
@@ -380,9 +443,9 @@ h3 {
 }
 
 .routeQuickTools strong {
-  min-width: 44px;
+  min-width: 40px;
   color: #f6c15b;
-  font-size: 12px;
+  font-size: 11px;
   text-align: center;
 }
 
@@ -523,6 +586,53 @@ h3 {
   background: rgba(255, 255, 255, 0.06);
 }
 
+.selectedCoachPanel,
+.advancedPanel {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.selectedCoachPanel span {
+  color: #9dafaa;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.selectedCoachPanel strong {
+  color: #f4f1e8;
+  font-size: 18px;
+}
+
+.selectedCoachPanel p,
+.advancedPanel summary {
+  color: #a8bbb1;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.advancedPanel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.advancedPanel summary {
+  cursor: pointer;
+  padding: 14px 16px;
+  font-weight: 900;
+}
+
+.advancedPanel[open] {
+  padding-bottom: 12px;
+}
+
+.advancedPanel[open] summary {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .demoStatus {
   display: grid;
   gap: 10px;
@@ -565,6 +675,26 @@ h3 {
   border-radius: 16px;
   background: #f6c15b;
   color: #132018;
+}
+
+.playDemoButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 116px;
+  height: 52px;
+  border-radius: 14px;
+  background: #f6c15b;
+  color: #132018;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.iconButton {
+  min-width: 42px;
+  width: 42px;
+  padding: 0;
 }
 
 .playback input {
@@ -824,30 +954,23 @@ h3 {
 
 @media (max-width: 1180px) {
   .app {
-    grid-template-columns: 68px minmax(0, 1fr);
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
     height: auto;
     min-height: 100vh;
     overflow: visible;
   }
 
-  .inspector {
-    grid-column: 2;
-  }
-
   .leftRail,
   .fieldShell,
   .inspector {
+    grid-column: 1;
+    grid-row: auto;
     max-height: none;
   }
 
   .fieldShell {
-    grid-column: 2;
-    grid-row: 1;
     overflow: visible;
-  }
-
-  .leftRail {
-    grid-row: 1 / span 3;
   }
 }
 
@@ -881,14 +1004,22 @@ h3 {
   .toolStack {
     display: flex;
     gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
 
   .tool,
   .addButton,
   .iconButton {
-    width: 38px;
+    min-width: 64px;
     height: 38px;
     border-radius: 10px;
+    padding: 0 10px;
+  }
+
+  .iconButton {
+    min-width: 38px;
+    width: 38px;
   }
 
   .mark {
@@ -907,6 +1038,11 @@ h3 {
     padding: 16px;
   }
 
+  .workflowHint,
+  .phaseButtons {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .fieldHeader,
   .selectionBar {
     align-items: flex-start;
@@ -915,6 +1051,17 @@ h3 {
 
   .routeQuickBar {
     margin-bottom: 10px;
+    grid-template-columns: 1fr;
+  }
+
+  .routeQuickContent {
+    display: grid;
+    gap: 8px;
+  }
+
+  .routeQuickButtons,
+  .routeQuickTools {
+    justify-content: flex-start;
   }
 
   .canvasFrame {
@@ -927,12 +1074,48 @@ h3 {
   }
 }
 
-@media (max-height: 760px) and (min-width: 761px) {
+@media (max-height: 820px) and (min-width: 761px) {
+  .app {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .leftRail {
+    padding: 10px 12px;
+  }
+
+  .fieldShell,
+  .inspector {
+    padding: 16px;
+  }
+
+  .fieldHeader {
+    margin-bottom: 8px;
+  }
+
+  .fieldHeader p,
+  .brandMark span {
+    display: none;
+  }
+
+  h1 {
+    font-size: 30px;
+  }
+
+  .workflowHint {
+    margin-bottom: 8px;
+  }
+
+  .routeQuickBar {
+    margin-bottom: 8px;
+    padding: 10px;
+  }
+
   .phaseStrip {
     display: none;
   }
 
   .canvasFrame {
-    max-height: calc(100dvh - 235px);
+    max-height: none;
   }
 }

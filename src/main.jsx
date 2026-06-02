@@ -6,11 +6,9 @@ import {
   CircleDot,
   ClipboardList,
   Flag,
-  Goal,
   Layers3,
   Move,
   Pause,
-  PenLine,
   Play,
   Plus,
   Route,
@@ -61,7 +59,7 @@ const playbook = [
 ];
 
 const DEMO_DURATION = 3.2;
-const ROUTE_DRAW_PORTION = 0.34;
+const MOVEMENT_DELAY_PORTION = 0.22;
 
 const demoPhases = [
   { key: "snap", time: 0, progress: 0, label: "开球", body: "站位确认，QB 接球后先看弱侧安全卫。" },
@@ -123,6 +121,7 @@ function presetRouteToCustomPoints(player, routeKey) {
 
 function routeLabel(player) {
   if (!player) return "无路线";
+  if (player.side === "defense") return player.customRoute?.length ? "移动路线" : "无移动";
   if (player.route && routeShapes[player.route]) return player.route.toUpperCase();
   if (player.customRoute?.length) return "CUSTOM";
   return "无路线";
@@ -149,6 +148,7 @@ function routePointsForPlayer(player) {
   if (player.customRoute?.length) {
     return [{ x: player.x, y: player.y }, ...player.customRoute];
   }
+  if (player.side === "defense") return null;
   const route = presetRoutePoints(player);
   if (!route) return null;
   const scale = player.routeScale || 1;
@@ -205,8 +205,8 @@ function demoStateFromProgress(progress) {
   return {
     phase,
     elapsed: clampedProgress * DEMO_DURATION,
-    routeDrawProgress: clamp(clampedProgress / ROUTE_DRAW_PORTION, 0, 1),
-    playerMoveProgress: clamp((clampedProgress - ROUTE_DRAW_PORTION) / (1 - ROUTE_DRAW_PORTION), 0, 1)
+    routeDrawProgress: 1,
+    playerMoveProgress: clamp((clampedProgress - MOVEMENT_DELAY_PORTION) / (1 - MOVEMENT_DELAY_PORTION), 0, 1)
   };
 }
 
@@ -233,8 +233,8 @@ function FieldCanvas({
   onUndoRoutePoint
 }) {
   const selected = players.find((p) => p.id === selectedId);
-  const selectedHasRoute = selected?.side === "offense" && (Boolean(selected.customRoute?.length) || Boolean(routeShapes[selected.route]));
-  const selectedCanUndoRoute = selected?.side === "offense" && Boolean(selected.customRoute?.length);
+  const selectedHasRoute = Boolean(selected?.customRoute?.length) || (selected?.side === "offense" && Boolean(routeShapes[selected.route]));
+  const selectedCanUndoRoute = Boolean(selected?.customRoute?.length);
   const selectedCanScaleRoute = selected?.side === "offense" && Boolean(selected.customRoute?.length);
   const svgRef = useRef(null);
   const actionRef = useRef(null);
@@ -276,7 +276,7 @@ function FieldCanvas({
     event.stopPropagation();
     setSelectedId(player.id);
     if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) return;
-    if (tool === "route" && player.side === "offense") {
+    if (tool === "route") {
       actionRef.current = { type: "drawRoute", playerId: player.id, start: { x: player.x, y: player.y }, points: [] };
       setActiveDrag({ type: "drawRoute", playerId: player.id });
       setRoutePreview(null);
@@ -342,29 +342,46 @@ function FieldCanvas({
       <div className="fieldHeader">
         <div>
           <h1>战术 Flow</h1>
-          <p>5v5 腰旗橄榄球战术绘制、分层讲解、节奏演示</p>
+          <p>先摆球员，再点路线，最后播放讲解。</p>
         </div>
         <div className="modeBadge">
           <Trophy size={17} />
           5v5 腰旗
         </div>
       </div>
+      <div className="workflowHint">
+        <span className={tool === "move" || tool === "zone" ? "active" : ""}>1 摆阵</span>
+        <span className={tool === "route" ? "active" : ""}>2 画路线</span>
+        <span className={tool === "motion" ? "active" : ""}>3 演示</span>
+      </div>
       <div className="routeQuickBar">
         <div className="routeQuickMeta">
           <Route size={17} />
-          <span>{selected?.side === "offense" ? `${selected.label} 快捷路线` : "选择进攻球员设置路线"}</span>
+          <span>{selected?.side === "offense" ? `给 ${selected.label} 添加路线` : selected?.side === "defense" ? `给 ${selected.label} 画移动` : "先选中球员"}</span>
         </div>
-        <div className="routeQuickButtons">
-          {["Go", "Slant", "Out", "Wheel", "Read", "Curl"].map((route) => (
-            <button key={route} onClick={() => onPresetRoute(route)} disabled={selected?.side !== "offense"}>{route}</button>
-          ))}
-        </div>
-        <div className="routeQuickTools">
-          <button onClick={() => onAdjustRouteScale(-0.1)} disabled={!selectedCanScaleRoute}>缩短</button>
-          <strong>{selectedCanScaleRoute ? `${Math.round((selected.routeScale || 1) * 100)}%` : "长度"}</strong>
-          <button onClick={() => onAdjustRouteScale(0.1)} disabled={!selectedCanScaleRoute}>加长</button>
-          <button onClick={onUndoRoutePoint} disabled={!selectedCanUndoRoute}>撤回节点</button>
-          <button onClick={onClearRoute} disabled={!selectedHasRoute}>清除路线</button>
+        <div className="routeQuickContent">
+          <div className="routeQuickButtons">
+            {[
+              ["Go", "直跑"],
+              ["Slant", "斜切"],
+              ["Out", "外切"],
+              ["Wheel", "绕跑"],
+              ["Read", "阅读"],
+              ["Curl", "回切"]
+            ].map(([route, label]) => (
+              <button key={route} onClick={() => onPresetRoute(route)} disabled={selected?.side !== "offense"}>
+                <strong>{label}</strong>
+                <small>{route}</small>
+              </button>
+            ))}
+          </div>
+          <div className="routeQuickTools">
+            <button onClick={() => onAdjustRouteScale(-0.1)} disabled={!selectedCanScaleRoute}>缩短</button>
+            <strong>{selectedCanScaleRoute ? `${Math.round((selected.routeScale || 1) * 100)}%` : "长度"}</strong>
+            <button onClick={() => onAdjustRouteScale(0.1)} disabled={!selectedCanScaleRoute}>加长</button>
+            <button onClick={onUndoRoutePoint} disabled={!selectedCanUndoRoute}>撤回</button>
+            <button onClick={onClearRoute} disabled={!selectedHasRoute}>清除</button>
+          </div>
         </div>
       </div>
       <div className="canvasFrame">
@@ -407,39 +424,44 @@ function FieldCanvas({
 
           {activeLayers.defense && (
             <g className="coverageLayer">
-              {players.filter((player) => player.side === "defense").map((player) => (
+              {players.filter((player) => player.side === "defense").map((player) => {
+                const moved = isDemoActive ? routeEnd(player, demoState.playerMoveProgress) : player;
+                return (
                 <circle
                   key={`${player.id}-zone`}
                   data-zone-id={player.id}
-                  cx={player.x}
-                  cy={player.y}
+                  cx={moved.x}
+                  cy={moved.y}
                   r={player.zoneRadius || 112}
                   fill="#7ad7ff16"
                   stroke={selectedId === player.id ? "#b8f1ff" : "#7ad7ff66"}
                   strokeWidth={selectedId === player.id ? 4 : 3}
                   strokeDasharray="12 10"
                 />
-              ))}
+                );
+              })}
             </g>
           )}
 
           {activeLayers.routes && players.map((player) => {
             const route = presetRoutePoints(player);
-            if (player.side !== "offense") return null;
-            if (!player.customRoute?.length && !route) return null;
+            if (player.side === "defense" && !player.customRoute?.length) return null;
+            if (player.side === "offense" && !player.customRoute?.length && !route) return null;
             const routeProgress = isDemoActive ? demoState.routeDrawProgress : 1;
             const isDemoRoute = isDemoActive && routeProgress < 1;
+            const points = player.customRoute?.length ? customPointString(player, routeProgress) : pointString(route, player, routeProgress);
             return (
               <polyline
                 key={`${player.id}-route`}
                 data-route-id={player.id}
                 className={isDemoRoute || selectedId === player.id ? "routeLine isDemoActive" : "routeLine"}
-                points={player.customRoute?.length ? customPointString(player, routeProgress) : pointString(route, player, routeProgress)}
+                points={points}
                 fill="none"
                 stroke={player.color}
-                strokeWidth={6}
+                strokeWidth={player.side === "defense" ? 4 : 6}
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                strokeDasharray={player.side === "defense" ? "12 10" : undefined}
               />
             );
           })}
@@ -457,8 +479,8 @@ function FieldCanvas({
             />
           )}
 
-          {activeLayers.routes && players.map((player) => {
-            if (player.side !== "offense" || !player.customRoute?.length) return null;
+          {activeLayers.routes && !isDemoActive && players.map((player) => {
+            if (!player.customRoute?.length) return null;
             return player.customRoute.map((point, index) => (
               <circle
                 key={`${player.id}-point-${index}`}
@@ -468,7 +490,7 @@ function FieldCanvas({
                 cx={point.x}
                 cy={point.y}
                 r="9"
-                fill="#f6c15b"
+                fill={player.side === "defense" ? "#7ad7ff" : "#f6c15b"}
                 stroke={selectedId === player.id ? "#fff5cf" : "#251d0b"}
                 strokeWidth="3"
                 onPointerDown={(event) => handleRoutePointPointerDown(event, player.id, index)}
@@ -494,9 +516,9 @@ function FieldCanvas({
           )}
 
           {players.map((player) => {
-            const moved = player.side === "offense" ? routeEnd(player, isDemoActive ? demoState.playerMoveProgress : 0) : player;
+            const moved = isDemoActive ? routeEnd(player, demoState.playerMoveProgress) : player;
             const isSelected = selectedId === player.id;
-            const isDemoFocus = isDemoActive && player.side === "offense" && demoState.playerMoveProgress > 0 && Boolean(routePointsForPlayer(player));
+            const isDemoFocus = isDemoActive && demoState.playerMoveProgress > 0 && Boolean(routePointsForPlayer(player));
             return (
               <g
                 key={player.id}
@@ -529,10 +551,10 @@ function FieldCanvas({
               <text x="776" y="160">风险：弱侧 Flat 被蹲守时切 Hot</text>
             </g>
           )}
-          {tool === "route" && selected?.side === "offense" && (
+          {tool === "route" && selected && (
             <g className="drawHint">
               <rect x="44" y="44" width="470" height="48" rx="16" />
-              <text x="66" y="75">路线绘制：从 {selected.label} 拖拽画线，拖动节点微调</text>
+              <text x="66" y="75">{selected.side === "defense" ? "防守移动" : "路线绘制"}：从 {selected.label} 拖拽画线，拖动节点微调</text>
             </g>
           )}
         </svg>
@@ -565,8 +587,9 @@ function FieldCanvas({
   );
 }
 
-function DemoControl({ progress, playing, setProgress, setPlaying, demoState }) {
+function DemoControl({ progress, playing, setProgress, setPlaying, demoState, onActivateDemo }) {
   function jumpToPhase(phaseProgress) {
+    onActivateDemo();
     setPlaying(false);
     setProgress(phaseProgress);
   }
@@ -582,8 +605,16 @@ function DemoControl({ progress, playing, setProgress, setPlaying, demoState }) 
         <small>{demoState.elapsed.toFixed(1)}s / {DEMO_DURATION.toFixed(1)}s</small>
       </div>
       <div className="playback">
-        <button className="primaryRound" onClick={() => setPlaying((current) => !current)}>
+        <button
+          className="playDemoButton"
+          onClick={() => {
+            onActivateDemo();
+            if (!playing && progress >= 1) setProgress(0);
+            setPlaying((current) => !current);
+          }}
+        >
           {playing ? <Pause size={22} /> : <Play size={22} />}
+          <span>{playing ? "暂停" : "开始演示"}</span>
         </button>
         <div className="timelineControl">
           <input
@@ -593,6 +624,7 @@ function DemoControl({ progress, playing, setProgress, setPlaying, demoState }) 
             max="100"
             value={Math.round(progress * 100)}
             onChange={(event) => {
+              onActivateDemo();
               setPlaying(false);
               setProgress(Number(event.target.value) / 100);
             }}
@@ -637,7 +669,7 @@ function App() {
   const [roster, setRoster] = useState(basePlayers);
   const [history, setHistory] = useState({ past: [], future: [] });
   const [tool, setTool] = useState("move");
-  const [selectedId, setSelectedId] = useState("qb");
+  const [selectedId, setSelectedId] = useState("wr1");
   const [newOffenseRole, setNewOffenseRole] = useState("wr");
   const [progress, setProgress] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -648,7 +680,7 @@ function App() {
   const players = useMemo(() => roster, [roster]);
   const selectedPlayer = players.find((player) => player.id === selectedId);
   const demoState = demoStateFromProgress(progress);
-  const isDemoActive = playing || progress > 0;
+  const isDemoActive = tool === "motion" && (playing || progress > 0);
 
   function rememberRoster(snapshot = roster) {
     setHistory((current) => {
@@ -703,6 +735,18 @@ function App() {
     return () => window.clearInterval(timer);
   }, [playing]);
 
+  function selectTool(nextTool) {
+    setTool(nextTool);
+    if (nextTool !== "motion") {
+      setPlaying(false);
+      setProgress(0);
+    }
+  }
+
+  function activateDemo() {
+    setTool("motion");
+  }
+
   function toggleLayer(key) {
     setActiveLayers((current) => ({ ...current, [key]: !current[key] }));
   }
@@ -721,8 +765,13 @@ function App() {
 
   function setCustomRoute(playerId, points) {
     updateRoster((current) => current.map((player) => {
-      if (player.id !== playerId || player.side !== "offense") return player;
+      if (player.id !== playerId) return player;
       const customRoute = points.map((point) => ({ x: Math.round(point.x), y: Math.round(point.y) })).slice(0, 6);
+      if (player.side === "defense") {
+        return customRoute.length
+          ? { ...player, customRoute }
+          : { ...player, customRoute: undefined };
+      }
       return customRoute.length
         ? { ...player, route: "custom", routeScale: 1, customRoute }
         : { ...player, route: null, routeScale: undefined, customRoute: undefined };
@@ -732,10 +781,11 @@ function App() {
 
   function moveRoutePoint(playerId, pointIndex, point) {
     updateRoster((current) => current.map((player) => {
-      if (player.id !== playerId || player.side !== "offense" || !player.customRoute?.[pointIndex]) return player;
+      if (player.id !== playerId || !player.customRoute?.[pointIndex]) return player;
       const customRoute = player.customRoute.map((routePoint, index) => (
         index === pointIndex ? { x: Math.round(point.x), y: Math.round(point.y) } : routePoint
       ));
+      if (player.side === "defense") return { ...player, customRoute };
       return { ...player, route: player.route || "custom", routeScale: player.routeScale || 1, customRoute };
     }), { remember: false });
     setProgress(0);
@@ -743,15 +793,22 @@ function App() {
 
   function clearSelectedRoute() {
     updateRoster((current) => current.map((player) => (
-      player.id === selectedId ? { ...player, route: null, routeScale: undefined, customRoute: undefined } : player
+      player.id === selectedId
+        ? player.side === "offense"
+          ? { ...player, route: null, routeScale: undefined, customRoute: undefined }
+          : { ...player, customRoute: undefined }
+        : player
     )));
     setProgress(0);
   }
 
   function undoSelectedRoutePoint() {
     updateRoster((current) => current.map((player) => {
-      if (player.id !== selectedId || player.side !== "offense" || !player.customRoute?.length) return player;
+      if (player.id !== selectedId || !player.customRoute?.length) return player;
       const customRoute = player.customRoute.slice(0, -1);
+      if (player.side === "defense") {
+        return customRoute.length ? { ...player, customRoute } : { ...player, customRoute: undefined };
+      }
       return customRoute.length
         ? { ...player, route: player.route || "custom", routeScale: player.routeScale || 1, customRoute }
         : { ...player, route: null, routeScale: undefined, customRoute: undefined };
@@ -860,8 +917,8 @@ function App() {
     setPlaying(false);
   }
 
-  const selectedHasRoute = selectedPlayer?.side === "offense" && (Boolean(selectedPlayer.customRoute?.length) || Boolean(routeShapes[selectedPlayer.route]));
-  const selectedCanUndoRoute = selectedPlayer?.side === "offense" && Boolean(selectedPlayer.customRoute?.length);
+  const selectedHasRoute = Boolean(selectedPlayer?.customRoute?.length) || (selectedPlayer?.side === "offense" && Boolean(routeShapes[selectedPlayer.route]));
+  const selectedCanUndoRoute = Boolean(selectedPlayer?.customRoute?.length);
   const selectedCanScaleRoute = selectedPlayer?.side === "offense" && Boolean(selectedPlayer.customRoute?.length);
 
   return (
@@ -876,14 +933,14 @@ function App() {
         </div>
         <nav className="toolStack">
           {[
-            ["move", Move, "选择"],
-            ["draw", PenLine, "绘制"],
-            ["route", Route, "路线"],
-            ["zone", Shield, "区域"],
+            ["move", Move, "摆阵"],
+            ["route", Route, "画路线"],
+            ["zone", Shield, "防守"],
             ["motion", Zap, "演示"]
           ].map(([key, Icon, label]) => (
-            <button key={key} className={tool === key ? "tool active" : "tool"} onClick={() => setTool(key)} title={label}>
+            <button key={key} className={tool === key ? "tool active" : "tool"} onClick={() => selectTool(key)} title={label}>
               <Icon size={20} />
+              <span>{label}</span>
             </button>
           ))}
         </nav>
@@ -944,17 +1001,65 @@ function App() {
 
       <aside className="inspector">
         <div className="panelTop">
-          <h2>演示控制</h2>
-          <button><Goal size={16} />导出</button>
+          <h2>当前操作</h2>
+          <button onClick={savePlay}><Save size={16} />保存</button>
         </div>
+        <div className="selectedCoachPanel">
+          <span>当前球员</span>
+          <strong>{selectedPlayer ? `${selectedPlayer.label} · ${selectedPlayer.name}` : "未选择"}</strong>
+          <p>
+            {selectedPlayer?.side === "offense"
+              ? `路线：${routeLabel(selectedPlayer)}。点击战术板上方路线按钮即可添加或替换。`
+              : selectedPlayer?.side === "defense"
+                ? `移动：${routeLabel(selectedPlayer)}。切到“画路线”后从防守球员拖拽即可设置移动。`
+                : "点击场上球员开始编辑。"}
+          </p>
+        </div>
+        {selectedPlayer?.side === "offense" && (
+          <div className="rolePanel compactPanel">
+            <h3><Users size={17} />角色</h3>
+            <div className="roleGrid">
+              {offenseRoles.map((role) => (
+                <button
+                  key={role.key}
+                  className={selectedPlayer.role === role.key ? "selectedRole" : ""}
+                  onClick={() => updateSelectedRole(role.key)}
+                >
+                  <strong>{role.label}</strong>
+                  <span>{role.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {selectedPlayer?.side === "defense" && (
+          <div className="zonePanel">
+            <h3><Shield size={17} />防守范围</h3>
+            <div className="rangeValue">
+              <span>{selectedPlayer.label} 覆盖半径</span>
+              <strong>{selectedPlayer.zoneRadius || 112}</strong>
+            </div>
+            <input
+              aria-label="防守范围半径"
+              type="range"
+              min="64"
+              max="220"
+              value={selectedPlayer.zoneRadius || 112}
+              onChange={(event) => updateSelectedZoneRadius(event.target.value)}
+            />
+          </div>
+        )}
         <DemoControl
           progress={progress}
           playing={playing}
           setProgress={setProgress}
           setPlaying={setPlaying}
           demoState={demoState}
+          onActivateDemo={activateDemo}
         />
-        <div className="layerPanel">
+        <details className="advancedPanel">
+          <summary>高级设置</summary>
+          <div className="layerPanel">
           <h3><Layers3 size={17} />图层</h3>
           {layers.map(({ key, label, icon: Icon }) => (
             <label key={key} className="layerRow">
@@ -962,8 +1067,8 @@ function App() {
               <input type="checkbox" checked={activeLayers[key]} onChange={() => toggleLayer(key)} />
             </label>
           ))}
-        </div>
-        <div className="rolePanel">
+          </div>
+          <div className="rolePanel">
           <h3><Users size={17} />进攻角色</h3>
           <p>{selectedPlayer?.side === "offense" ? "选中进攻球员后切换角色。" : "请选择进攻球员来设置角色。"}</p>
           <div className="roleGrid">
@@ -979,8 +1084,8 @@ function App() {
               </button>
             ))}
           </div>
-        </div>
-        <div className="routePanel">
+          </div>
+          <div className="routePanel">
           <h3><Route size={17} />路线库</h3>
           {["Go", "Slant", "Out", "Wheel", "Read", "Curl"].map((route) => (
             <button key={route} onClick={() => updateSelectedRoute(route)} disabled={selectedPlayer?.side !== "offense"}>{route}<ArrowRight size={15} /></button>
@@ -1006,8 +1111,8 @@ function App() {
           </div>
           <button className="wideAction" onClick={undoSelectedRoutePoint} disabled={!selectedCanUndoRoute}>撤回上一节点</button>
           <button className="wideAction" onClick={clearSelectedRoute} disabled={!selectedHasRoute}>去除当前路线</button>
-        </div>
-        <div className="zonePanel">
+          </div>
+          <div className="zonePanel">
           <h3><Shield size={17} />防守范围</h3>
           {selectedPlayer?.side === "defense" ? (
             <>
@@ -1027,11 +1132,12 @@ function App() {
           ) : (
             <p>请选择防守球员来设置区域范围。</p>
           )}
-        </div>
-        <div className="coachNotes">
+          </div>
+          <div className="coachNotes">
           <h3><Users size={17} />训练提示</h3>
           <p>{savedAt ? `已在 ${savedAt} 保存。` : "第一读强侧安全卫，若 Flat 提前下压，QB 保持肩线不转，S 位回切空窗。"}</p>
-        </div>
+          </div>
+        </details>
       </aside>
     </main>
   );
