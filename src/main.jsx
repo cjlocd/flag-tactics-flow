@@ -25,6 +25,7 @@ import {
 import "./styles.css";
 
 const FIELD = { width: 1200, height: 620 };
+const FLAG_FIELD = { total: 70, endZone: 10, midfield: 35 };
 
 const basePlayers = [
   { id: "qb", side: "offense", role: "qb", label: "QB", name: "四分卫", x: 178, y: 310, route: null, color: "#f6c15b" },
@@ -41,6 +42,8 @@ const basePlayers = [
 
 const routeShapes = {
   go: true,
+  in5: true,
+  out5: true,
   slant: true,
   out: true,
   wheel: true,
@@ -82,6 +85,42 @@ const offenseRoles = [
   { key: "rb", label: "RB", name: "跑卫", route: "wheel" }
 ];
 
+const routePresets = [
+  { key: "go", label: "Go", name: "直跑" },
+  { key: "in5", label: "5 In", name: "5码 In 90" },
+  { key: "out5", label: "5 Out", name: "5码 Out 90" },
+  { key: "slant", label: "Slant", name: "斜切" },
+  { key: "curl", label: "Curl", name: "回切" },
+  { key: "wheel", label: "Wheel", name: "绕跑" }
+];
+
+const defaultPlayMeta = {
+  title: "Trips Right Z Go",
+  formation: "Trips Right",
+  playType: "进攻",
+  difficulty: "简单",
+  situation: "破人盯人",
+  tags: "5v5,破人盯人,短码数",
+  notes: "Z 拉深，QB 先读安全卫，再看中路空窗。"
+};
+
+function readPlayLibrary() {
+  try {
+    const value = localStorage.getItem("ocd-tactics-library");
+    const parsed = value ? JSON.parse(value) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function summarizePlay(players, passTargetId) {
+  const routeCount = players.filter((player) => player.side === "offense" && (player.customRoute?.length || routeShapes[player.route])).length;
+  const defenseMoveCount = players.filter((player) => player.side === "defense" && player.customRoute?.length).length;
+  const passTarget = players.find((player) => player.id === passTargetId);
+  return `${routeCount} 条进攻路线 · ${defenseMoveCount} 条防守移动 · 传球 ${passTarget?.label || "未设"}`;
+}
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -97,6 +136,8 @@ function presetRoutePoints(player) {
   const outside = -inside;
   const routes = {
     go: [[0, 0], [280, 0]],
+    in5: [[0, 0], [90, 0], [90, inside * 110]],
+    out5: [[0, 0], [90, 0], [90, outside * 110]],
     slant: [[0, 0], [70, 0], [220, inside * 92]],
     out: [[0, 0], [120, 0], [120, outside * 92], [212, outside * 92]],
     wheel: [[0, 0], [46, outside * 44], [128, outside * 96], [270, outside * 96]],
@@ -206,8 +247,13 @@ function demoStateFromProgress(progress) {
     phase,
     elapsed: clampedProgress * DEMO_DURATION,
     routeDrawProgress: 1,
-    playerMoveProgress: clamp((clampedProgress - MOVEMENT_DELAY_PORTION) / (1 - MOVEMENT_DELAY_PORTION), 0, 1)
+    playerMoveProgress: clamp((clampedProgress - MOVEMENT_DELAY_PORTION) / (1 - MOVEMENT_DELAY_PORTION), 0, 1),
+    passProgress: clamp((clampedProgress - demoPhases[2].progress) / (1 - demoPhases[2].progress), 0, 1)
   };
+}
+
+function fieldX(yard) {
+  return (yard / FLAG_FIELD.total) * FIELD.width;
 }
 
 function FieldCanvas({
@@ -230,9 +276,17 @@ function FieldCanvas({
   onPresetRoute,
   onAdjustRouteScale,
   onClearRoute,
-  onUndoRoutePoint
+  onUndoRoutePoint,
+  playing,
+  progress,
+  onToggleDemo,
+  passTargetId,
+  onSetPassTarget
 }) {
   const selected = players.find((p) => p.id === selectedId);
+  const quarterback = players.find((player) => player.id === "qb") || players.find((player) => player.role === "qb");
+  const passTarget = players.find((player) => player.id === passTargetId);
+  const canSetPassTarget = selected?.side === "offense" && selected.id !== quarterback?.id;
   const selectedHasRoute = Boolean(selected?.customRoute?.length) || (selected?.side === "offense" && Boolean(routeShapes[selected.route]));
   const selectedCanUndoRoute = Boolean(selected?.customRoute?.length);
   const selectedCanScaleRoute = selected?.side === "offense" && Boolean(selected.customRoute?.length);
@@ -341,7 +395,7 @@ function FieldCanvas({
     <section className="fieldShell">
       <div className="fieldHeader">
         <div>
-          <h1>战术 Flow</h1>
+          <h1>OCD战术帝</h1>
           <p>先摆球员，再点路线，最后播放讲解。</p>
         </div>
         <div className="modeBadge">
@@ -361,17 +415,10 @@ function FieldCanvas({
         </div>
         <div className="routeQuickContent">
           <div className="routeQuickButtons">
-            {[
-              ["Go", "直跑"],
-              ["Slant", "斜切"],
-              ["Out", "外切"],
-              ["Wheel", "绕跑"],
-              ["Read", "阅读"],
-              ["Curl", "回切"]
-            ].map(([route, label]) => (
-              <button key={route} onClick={() => onPresetRoute(route)} disabled={selected?.side !== "offense"}>
-                <strong>{label}</strong>
-                <small>{route}</small>
+            {routePresets.map((route) => (
+              <button key={route.key} onClick={() => onPresetRoute(route.key)} disabled={selected?.side !== "offense"}>
+                <strong>{route.name}</strong>
+                <small>{route.label}</small>
               </button>
             ))}
           </div>
@@ -381,6 +428,13 @@ function FieldCanvas({
             <button onClick={() => onAdjustRouteScale(0.1)} disabled={!selectedCanScaleRoute}>加长</button>
             <button onClick={onUndoRoutePoint} disabled={!selectedCanUndoRoute}>撤回</button>
             <button onClick={onClearRoute} disabled={!selectedHasRoute}>清除</button>
+            <button onClick={() => onSetPassTarget(selected.id)} disabled={!canSetPassTarget}>
+              {passTargetId === selected?.id ? "传球目标" : "传给他"}
+            </button>
+            <button className="routePlayButton" onClick={onToggleDemo}>
+              {playing ? <Pause size={15} /> : <Play size={15} />}
+              {playing ? "暂停" : progress > 0 ? "继续演示" : "开始演示"}
+            </button>
           </div>
         </div>
       </div>
@@ -406,21 +460,51 @@ function FieldCanvas({
             </filter>
           </defs>
           <rect width={FIELD.width} height={FIELD.height} rx="22" fill="url(#grass)" />
-          {Array.from({ length: 13 }).map((_, i) => (
-            <g key={i}>
-              <rect x={i * 100} y="0" width="50" height={FIELD.height} fill={i % 2 ? "#ffffff08" : "#00000008"} />
-              <line x1={i * 100} x2={i * 100} y1="34" y2={FIELD.height - 34} stroke="#ffffff42" strokeWidth="3" />
+          <rect x="0" y="0" width={fieldX(FLAG_FIELD.endZone)} height={FIELD.height} fill="#0f2a23aa" />
+          <rect x={fieldX(60)} y="0" width={fieldX(FLAG_FIELD.endZone)} height={FIELD.height} fill="#0f2a23aa" />
+          <text x={fieldX(5)} y="318" className="endZoneText" transform={`rotate(-90 ${fieldX(5)} 318)`}>END ZONE</text>
+          <text x={fieldX(65)} y="318" className="endZoneText" transform={`rotate(90 ${fieldX(65)} 318)`}>END ZONE</text>
+
+          {Array.from({ length: FLAG_FIELD.total / 5 + 1 }).map((_, i) => {
+            const yard = i * 5;
+            const x = fieldX(yard);
+            return (
+            <g key={yard}>
+              {i < FLAG_FIELD.total / 5 && (
+                <rect x={x} y="0" width={fieldX(5)} height={FIELD.height} fill={i % 2 ? "#ffffff08" : "#00000008"} />
+              )}
+              <line
+                x1={x}
+                x2={x}
+                y1="34"
+                y2={FIELD.height - 34}
+                stroke={yard === 10 || yard === 35 || yard === 60 ? "#ffffff7a" : "#ffffff36"}
+                strokeWidth={yard === 10 || yard === 35 || yard === 60 ? 5 : 2}
+              />
+            </g>
+            );
+          })}
+
+          {[20, 30, 35, 40, 50].map((yard) => {
+            const label = yard === 35 ? "25" : String(Math.min(yard - 10, 60 - yard));
+            return (
+            <text key={yard} x={fieldX(yard)} y="78" className={yard === 35 ? "midfieldText" : "yardText"}>
+              {label}
+            </text>
+            );
+          })}
+
+          {[15, 30, 40, 55].map((yard) => (
+            <g key={`no-run-${yard}`}>
+              <line x1={fieldX(yard)} x2={fieldX(yard)} y1="34" y2={FIELD.height - 34} stroke="#ffdc7a" strokeWidth="3" strokeDasharray="8 12" opacity="0.76" />
+              <text x={fieldX(yard) + 8} y={FIELD.height - 46} className="noRunText">NO RUN</text>
             </g>
           ))}
-          {[10, 20, 30, 40, 50, 40, 30, 20, 10].map((yard, i) => (
-            <text key={`${yard}-${i}`} x={165 + i * 100} y="78" className="yardText">
-              {yard}
-            </text>
-          ))}
-          <line x1="250" x2="250" y1="34" y2={FIELD.height - 34} stroke="#f6c15b" strokeWidth="5" strokeDasharray="14 12" />
-          <line x1="394" x2="394" y1="34" y2={FIELD.height - 34} stroke="#7ad7ff" strokeWidth="4" strokeDasharray="8 12" opacity="0.85" />
-          <text x="264" y="578" className="fieldLabel">LOS</text>
-          <text x="408" y="578" className="fieldLabel">FIRST READ</text>
+
+          <line x1={fieldX(10)} x2={fieldX(10)} y1="34" y2={FIELD.height - 34} stroke="#f6c15b" strokeWidth="5" strokeDasharray="14 12" />
+          <line x1={fieldX(35)} x2={fieldX(35)} y1="34" y2={FIELD.height - 34} stroke="#7ad7ff" strokeWidth="4" strokeDasharray="8 12" opacity="0.85" />
+          <text x={fieldX(10) + 14} y="578" className="fieldLabel">GOAL LINE</text>
+          <text x={fieldX(35) + 14} y="578" className="fieldLabel">MIDFIELD 25</text>
 
           {activeLayers.defense && (
             <g className="coverageLayer">
@@ -515,6 +599,43 @@ function FieldCanvas({
             </g>
           )}
 
+          {quarterback && (
+            <g className="passLayer">
+              {passTarget && (() => {
+                const start = routeEnd(quarterback, isDemoActive ? demoState.playerMoveProgress : 0);
+                const target = routeEnd(passTarget, isDemoActive ? 1 : 1);
+                const ball = interpolatePolyline([start, target], isDemoActive ? demoState.passProgress : 0) || start;
+                const angle = Math.atan2(target.y - start.y, target.x - start.x) * 180 / Math.PI;
+                return (
+                  <>
+                    <line
+                      x1={start.x}
+                      y1={start.y}
+                      x2={target.x}
+                      y2={target.y}
+                      className="passLine"
+                    />
+                    <text x={(start.x + target.x) / 2} y={(start.y + target.y) / 2 - 12} className="passLabel">PASS</text>
+                    <g transform={`translate(${ball.x} ${ball.y}) rotate(${angle})`} className="football">
+                      <ellipse rx="15" ry="9" />
+                      <line x1="-5" y1="0" x2="5" y2="0" />
+                      <line x1="-2" y1="-4" x2="-2" y2="4" />
+                      <line x1="2" y1="-4" x2="2" y2="4" />
+                    </g>
+                  </>
+                );
+              })()}
+              {!passTarget && (
+                <g transform={`translate(${quarterback.x + 28} ${quarterback.y - 18}) rotate(-16)`} className="football">
+                  <ellipse rx="15" ry="9" />
+                  <line x1="-5" y1="0" x2="5" y2="0" />
+                  <line x1="-2" y1="-4" x2="-2" y2="4" />
+                  <line x1="2" y1="-4" x2="2" y2="4" />
+                </g>
+              )}
+            </g>
+          )}
+
           {players.map((player) => {
             const moved = isDemoActive ? routeEnd(player, demoState.playerMoveProgress) : player;
             const isSelected = selectedId === player.id;
@@ -587,7 +708,7 @@ function FieldCanvas({
   );
 }
 
-function DemoControl({ progress, playing, setProgress, setPlaying, demoState, onActivateDemo }) {
+function DemoControl({ progress, playing, setProgress, setPlaying, demoState, onActivateDemo, onToggleDemo }) {
   function jumpToPhase(phaseProgress) {
     onActivateDemo();
     setPlaying(false);
@@ -607,11 +728,7 @@ function DemoControl({ progress, playing, setProgress, setPlaying, demoState, on
       <div className="playback">
         <button
           className="playDemoButton"
-          onClick={() => {
-            onActivateDemo();
-            if (!playing && progress >= 1) setProgress(0);
-            setPlaying((current) => !current);
-          }}
+          onClick={onToggleDemo}
         >
           {playing ? <Pause size={22} /> : <Play size={22} />}
           <span>{playing ? "暂停" : "开始演示"}</span>
@@ -675,6 +792,9 @@ function App() {
   const [playing, setPlaying] = useState(false);
   const [activePlay, setActivePlay] = useState(0);
   const [savedAt, setSavedAt] = useState("");
+  const [passTargetId, setPassTargetId] = useState("wr1");
+  const [playMeta, setPlayMeta] = useState(defaultPlayMeta);
+  const [playLibrary, setPlayLibrary] = useState(readPlayLibrary);
   const [activeLayers, setActiveLayers] = useState({ routes: true, defense: true, timing: true, notes: true });
 
   const players = useMemo(() => roster, [roster]);
@@ -745,6 +865,12 @@ function App() {
 
   function activateDemo() {
     setTool("motion");
+  }
+
+  function toggleDemoPlayback() {
+    activateDemo();
+    if (!playing && progress >= 1) setProgress(0);
+    setPlaying((current) => !current);
   }
 
   function toggleLayer(key) {
@@ -906,9 +1032,42 @@ function App() {
   }
 
   function savePlay() {
-    const payload = { gameType: "flag-5v5", roster, activeLayers, activePlay, savedAt: new Date().toISOString() };
+    const now = new Date().toISOString();
+    const payload = {
+      id: `${Date.now()}`,
+      gameType: "flag-5v5",
+      roster,
+      activeLayers,
+      activePlay,
+      passTargetId,
+      meta: playMeta,
+      summary: summarizePlay(roster, passTargetId),
+      savedAt: now
+    };
     localStorage.setItem("flag-football-tactics-flow", JSON.stringify(payload));
-    setSavedAt(new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }));
+    setPlayLibrary((current) => {
+      const next = [payload, ...current.filter((item) => item.id !== payload.id)].slice(0, 24);
+      localStorage.setItem("ocd-tactics-library", JSON.stringify(next));
+      return next;
+    });
+    setSavedAt(new Date(now).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }));
+  }
+
+  function loadPlayCard(card) {
+    if (!card?.roster) return;
+    rememberRoster();
+    setRoster(card.roster);
+    setActiveLayers(card.activeLayers || activeLayers);
+    setPassTargetId(card.passTargetId || "wr1");
+    setPlayMeta({ ...defaultPlayMeta, ...(card.meta || {}) });
+    setSelectedId(card.roster.find((player) => player.side === "offense")?.id || "wr1");
+    setTool("move");
+    setProgress(0);
+    setPlaying(false);
+  }
+
+  function updatePlayMeta(key, value) {
+    setPlayMeta((current) => ({ ...current, [key]: value }));
   }
 
   function choosePlay(index) {
@@ -927,8 +1086,8 @@ function App() {
         <div className="brandMark">
           <div className="mark">F</div>
           <div>
-            <strong>战术 Flow</strong>
-            <span>Coach Board</span>
+            <strong>OCD战术帝</strong>
+            <span>Tactics Board</span>
           </div>
         </div>
         <nav className="toolStack">
@@ -997,6 +1156,15 @@ function App() {
         onAdjustRouteScale={adjustSelectedRouteScale}
         onClearRoute={clearSelectedRoute}
         onUndoRoutePoint={undoSelectedRoutePoint}
+        playing={playing}
+        progress={progress}
+        onToggleDemo={toggleDemoPlayback}
+        passTargetId={passTargetId}
+        onSetPassTarget={(playerId) => {
+          setPassTargetId(playerId);
+          setProgress(0);
+          setPlaying(false);
+        }}
       />
 
       <aside className="inspector">
@@ -1004,12 +1172,79 @@ function App() {
           <h2>当前操作</h2>
           <button onClick={savePlay}><Save size={16} />保存</button>
         </div>
+        <div className="playMetaPanel">
+          <h3><ClipboardList size={17} />战术信息</h3>
+          <label>
+            <span>战术名称</span>
+            <input value={playMeta.title} onChange={(event) => updatePlayMeta("title", event.target.value)} />
+          </label>
+          <div className="metaGrid">
+            <label>
+              <span>阵型</span>
+              <input value={playMeta.formation} onChange={(event) => updatePlayMeta("formation", event.target.value)} />
+            </label>
+            <label>
+              <span>类型</span>
+              <select value={playMeta.playType} onChange={(event) => updatePlayMeta("playType", event.target.value)}>
+                <option>进攻</option>
+                <option>防守</option>
+              </select>
+            </label>
+            <label>
+              <span>难度</span>
+              <select value={playMeta.difficulty} onChange={(event) => updatePlayMeta("difficulty", event.target.value)}>
+                <option>简单</option>
+                <option>中等</option>
+                <option>高级</option>
+              </select>
+            </label>
+            <label>
+              <span>场景</span>
+              <input value={playMeta.situation} onChange={(event) => updatePlayMeta("situation", event.target.value)} />
+            </label>
+          </div>
+          <label>
+            <span>标签</span>
+            <input value={playMeta.tags} onChange={(event) => updatePlayMeta("tags", event.target.value)} placeholder="5v5,红区,破区域" />
+          </label>
+          <label>
+            <span>说明</span>
+            <textarea value={playMeta.notes} onChange={(event) => updatePlayMeta("notes", event.target.value)} rows="3" />
+          </label>
+        </div>
+        <div className="libraryPanel">
+          <div className="libraryHeader">
+            <h3><Flag size={17} />我的战术库</h3>
+            <span>{playLibrary.length} 个战术</span>
+          </div>
+          {playLibrary.length ? (
+            <div className="playCardList">
+              {playLibrary.map((card) => (
+                <button key={card.id} className="savedPlayCard" onClick={() => loadPlayCard(card)}>
+                  <div className="playPreview">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <div>
+                    <strong>{card.meta?.title || "未命名战术"}</strong>
+                    <small>{card.meta?.playType || "进攻"} · {card.meta?.difficulty || "简单"} · {card.meta?.formation || "5v5"}</small>
+                    <p>{card.summary}</p>
+                    <em>{(card.meta?.tags || "5v5").split(",").slice(0, 3).join(" / ")}</em>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="emptyLibrary">保存当前战术后，会在这里生成战术卡。</p>
+          )}
+        </div>
         <div className="selectedCoachPanel">
           <span>当前球员</span>
           <strong>{selectedPlayer ? `${selectedPlayer.label} · ${selectedPlayer.name}` : "未选择"}</strong>
           <p>
             {selectedPlayer?.side === "offense"
-              ? `路线：${routeLabel(selectedPlayer)}。点击战术板上方路线按钮即可添加或替换。`
+              ? `路线：${routeLabel(selectedPlayer)}。${passTargetId === selectedPlayer.id ? "当前为传球目标。" : "可设为传球目标。"}`
               : selectedPlayer?.side === "defense"
                 ? `移动：${routeLabel(selectedPlayer)}。切到“画路线”后从防守球员拖拽即可设置移动。`
                 : "点击场上球员开始编辑。"}
@@ -1056,6 +1291,7 @@ function App() {
           setPlaying={setPlaying}
           demoState={demoState}
           onActivateDemo={activateDemo}
+          onToggleDemo={toggleDemoPlayback}
         />
         <details className="advancedPanel">
           <summary>高级设置</summary>
@@ -1087,8 +1323,8 @@ function App() {
           </div>
           <div className="routePanel">
           <h3><Route size={17} />路线库</h3>
-          {["Go", "Slant", "Out", "Wheel", "Read", "Curl"].map((route) => (
-            <button key={route} onClick={() => updateSelectedRoute(route)} disabled={selectedPlayer?.side !== "offense"}>{route}<ArrowRight size={15} /></button>
+          {routePresets.map((route) => (
+            <button key={route.key} onClick={() => updateSelectedRoute(route.key)} disabled={selectedPlayer?.side !== "offense"}>{route.name}<ArrowRight size={15} /></button>
           ))}
           <div className="routeScaleControl">
             <div className="rangeValue">

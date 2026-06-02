@@ -20,7 +20,9 @@ body {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
@@ -418,17 +420,26 @@ h3 {
   white-space: nowrap;
 }
 
+.routeQuickTools .routePlayButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f6c15b;
+  color: #132018;
+  font-weight: 900;
+}
+
 .routeQuickButtons button {
   display: inline-flex;
   align-items: baseline;
   gap: 5px;
-  min-width: 62px;
+  min-width: 82px;
   background: #f6c15b;
   color: #132018;
 }
 
 .routeQuickButtons strong {
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .routeQuickButtons small {
@@ -464,6 +475,28 @@ h3 {
 .yardText {
   fill: #ffffff5c;
   font-size: 30px;
+  font-weight: 900;
+  text-anchor: middle;
+}
+
+.midfieldText {
+  fill: #ffffff82;
+  font-size: 34px;
+  font-weight: 900;
+  text-anchor: middle;
+}
+
+.endZoneText {
+  fill: #ffffff75;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-anchor: middle;
+}
+
+.noRunText {
+  fill: #ffdc7ac9;
+  font-size: 11px;
   font-weight: 900;
 }
 
@@ -587,6 +620,8 @@ h3 {
 }
 
 .selectedCoachPanel,
+.playMetaPanel,
+.libraryPanel,
 .advancedPanel {
   display: grid;
   gap: 8px;
@@ -594,6 +629,142 @@ h3 {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.055);
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.playMetaPanel,
+.libraryPanel {
+  gap: 12px;
+}
+
+.playMetaPanel label {
+  display: grid;
+  gap: 6px;
+}
+
+.playMetaPanel label span {
+  color: #9dafaa;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.playMetaPanel input,
+.playMetaPanel select,
+.playMetaPanel textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #f4f1e8;
+  padding: 9px 10px;
+  outline: none;
+}
+
+.playMetaPanel textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+.metaGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.libraryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.libraryHeader span,
+.emptyLibrary {
+  color: #9dafaa;
+  font-size: 12px;
+}
+
+.playCardList {
+  display: grid;
+  gap: 10px;
+}
+
+.savedPlayCard {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.065);
+  color: #dce8e2;
+  text-align: left;
+}
+
+.savedPlayCard:hover {
+  background: rgba(246, 193, 91, 0.12);
+}
+
+.savedPlayCard div:last-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.savedPlayCard strong,
+.savedPlayCard small,
+.savedPlayCard p,
+.savedPlayCard em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.savedPlayCard strong {
+  color: #f4f1e8;
+  font-size: 13px;
+}
+
+.savedPlayCard small,
+.savedPlayCard p {
+  color: #9dafaa;
+  font-size: 11px;
+}
+
+.savedPlayCard em {
+  color: #f6c15b;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.playPreview {
+  position: relative;
+  min-height: 58px;
+  overflow: hidden;
+  border-radius: 7px;
+  background: linear-gradient(90deg, #204936, #2f6749);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.playPreview span {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.playPreview span:nth-child(1) {
+  left: 22px;
+}
+
+.playPreview span:nth-child(2) {
+  left: 38px;
+  background: #f6c15b;
+}
+
+.playPreview span:nth-child(3) {
+  left: 54px;
 }
 
 .selectedCoachPanel span {
@@ -789,6 +960,33 @@ h3 {
 
 .routeLine.isDemoActive {
   filter: drop-shadow(0 0 7px rgba(246, 193, 91, 0.45));
+}
+
+.passLine {
+  stroke: #fff2bd;
+  stroke-width: 4;
+  stroke-dasharray: 10 9;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 8px rgba(246, 193, 91, 0.36));
+}
+
+.passLabel {
+  fill: #fff2bd;
+  font-size: 13px;
+  font-weight: 900;
+  text-anchor: middle;
+}
+
+.football ellipse {
+  fill: #8d4a23;
+  stroke: #ffd08a;
+  stroke-width: 2;
+}
+
+.football line {
+  stroke: #ffe6bb;
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 
 .playerNode.isDemoFocus circle {
